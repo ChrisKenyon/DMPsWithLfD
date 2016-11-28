@@ -1,0 +1,1 @@
+python run.py arm3 dmp write --write_to_file False --dt 0.0012
