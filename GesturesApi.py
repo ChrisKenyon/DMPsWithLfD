@@ -23,6 +23,7 @@ class GestureProcessor(object):
         self.gestureEnd = "END GESTURE"
         self.saveNextGesture = False
         self.lastAction = ""
+        self.handDistance = -1
         self.handMomentPositions = []
         self.handCenterPositions = []
         self.initGestures()
@@ -108,16 +109,26 @@ class GestureProcessor(object):
         self.original = cv2.flip(self.original, 1)
 
     def threshold(self):
+        hsv = cv2.cvtColor(self.original, cv2.COLOR_BGR2HSV)
+        rgb = cv2.cvtColor(self.original, cv2.COLOR_BGR2RGB)
         grey = cv2.cvtColor(self.original, cv2.COLOR_BGR2GRAY)
         value = (31, 31)
         blurred = cv2.GaussianBlur(grey, value, 0)
+        #lower = np.array ([0,100,100])
+        lower = np.array ([150,0,0])
+        #upper = np.array ([18,255,255])
+        upper = np.array ([255,100,100])
+        #self.mask = cv2.inRange(hsv,lower,upper)
+        self.mask = cv2.inRange(rgb,lower,upper)
         _, self.thresholded = cv2.threshold(blurred, 0, 255,
                                             cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 
     def extractContours(self):
-        self.contours, _ = cv2.findContours(self.thresholded.copy(),
-                                            cv2.RETR_TREE,
-                                            cv2.CHAIN_APPROX_SIMPLE)
+        self.contours, ret = cv2.findContours(self.mask, cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+        #self.contours, _ = cv2.findContours(self.thresholded.copy(),
+                                            #cv2.RETR_TREE,
+                                            #cv2.CHAIN_APPROX_SIMPLE)
+        
 
     # Currently just finds the largest contour,
     # Should be able to replace this with a "matching" algorithm from here:
@@ -130,13 +141,17 @@ class GestureProcessor(object):
             if area > maxArea:
                 maxArea = area
                 index = i
-        self.realHandContour = self.contours[index]
-        self.realHandLen = cv2.arcLength(self.realHandContour, True)
-        # reduce hand contour to manageable number of points
-        # Thanks to http://opencvpython.blogspot.com/2012/06/
-        #                                           contours-2-brotherhood.html
-        self.handContour = cv2.approxPolyDP(self.realHandContour,
-                                            0.001 * self.realHandLen, True)
+        if maxArea > 100:
+            self.realHandContour = self.contours[index]
+            self.realHandLen = cv2.arcLength(self.realHandContour, True)
+            # reduce hand contour to manageable number of points
+            # Thanks to http://opencvpython.blogspot.com/2012/06/
+            #                                           contours-2-brotherhood.html
+            self.handContour = cv2.approxPolyDP(self.realHandContour,
+                                                0.001 * self.realHandLen, True)
+            return True
+        else:
+            return False
 
 # ----------------------------- Contour Processing -----------------------------
 # Functions to process the contour to determine various data, such as
@@ -180,6 +195,8 @@ class GestureProcessor(object):
                 if rad > maxRadius:
                     maxPoint = (tx + x, ty + y)
                     maxRadius = rad
+        if not maxPoint:
+            return np.array([]), False
         realCenter = np.array(np.array(maxPoint) / scaleFactor,
                                   dtype=np.int32)
         error = int((1 / scaleFactor) * 1.5)
@@ -191,17 +208,23 @@ class GestureProcessor(object):
                 if rad > maxRadius:
                     maxPoint = (x, y)
                     maxRadius = rad
-        return np.array(maxPoint)
+        return np.array(maxPoint), True
 
     def findCenterCircleAndRadius(self):
-        self.palmCenter = self.centerWithReduction()
-        self.palmRadius = cv2.pointPolygonTest(self.handContour,
-                                               tuple(self.palmCenter), True)
-        self.handCenterPositions += [tuple(self.palmCenter)]
+        self.palmCenter,success = self.centerWithReduction()
+        if success:
+            self.palmRadius = cv2.pointPolygonTest(self.handContour,
+                                                   tuple(self.palmCenter), True)
+            self.handCenterPositions += [tuple(self.palmCenter)]
+            return True
+        else: return False
 
     def getDistance(self):
-        self.handDistance = (self.cameraWidth + self.cameraHeight) / \
-            float(self.palmRadius)
+        try:
+            self.handDistance = (self.cameraWidth + self.cameraHeight) / \
+                float(self.palmRadius)
+        except:
+            self.handDistance = -1
 
     def analyzeHandCenter(self):
         # makes sure that there is actually sufficient data to trace over
@@ -296,16 +319,17 @@ class GestureProcessor(object):
         self.readCamera()
         self.threshold()
         self.extractContours()
-        self.extractHandContour()
-        self.setHandDimensions()
-        self.findHullAndDefects()
-        self.findCenterWithMoments()
-        self.findCenterCircleAndRadius()
-        self.getDistance()
-        self.analyzeHandCenter()
-        self.checkCanDoGestures()
-        self.detemineStationary()
-        self.determineIfGesture()
+        self.found_hand = self.extractHandContour()
+        if self.found_hand:
+            self.setHandDimensions()
+            self.findHullAndDefects()
+            self.findCenterWithMoments()
+            self.findCenterCircleAndRadius()
+            self.getDistance()
+            self.analyzeHandCenter()
+            self.checkCanDoGestures()
+            self.detemineStationary()
+            self.determineIfGesture()
 
     def close(self):
         self.cap.release()
@@ -332,9 +356,12 @@ class GestureProcessor(object):
         return gestureName
 
     def getScaledCenter(self):
-        return (self.palmCenter / np.array([self.cameraWidth,
+        try:
+            return (self.palmCenter / np.array([self.cameraWidth,
                                             self.cameraHeight],
                                             dtype=np.float32)).round(3)
+        except:
+            return np.array([self.cameraWidth,self.cameraHeight],dtype=np.float32)/2
 
 # ---------------------------------- Graphics ----------------------------------
 # Functions associated with being able to draw the data in a human friendly
@@ -350,12 +377,23 @@ class GestureProcessor(object):
         resized = cv2.resize(image, (width, height))
         return cv2.cvtColor(resized, cv2.COLOR_GRAY2RGBA)
 
+    @staticmethod
+    def getRGBAFromHsv(image, width, height):
+        resized = cv2.resize(image, (width, height))
+        return cv2.cvtColor(resized, cv2.COLOR_HSV2RGB)
+
+    @staticmethod
+    def getMaskedResized(image,width,height,mask):
+        #resized = cv2.resize(image, (width, height))
+        #return cv2.bitwise_and(resized,resized,mask)
+        return cv2.resize(mask,(width,height))
+
     def getRGBAThresh(self, widthScale=1, heightScale=1):
         if widthScale != 1 or heightScale != 1:
-            resized = cv2.resize(self.thresholded, (0, 0), fx=widthScale,
+            resized = cv2.resize(self.mask, (0, 0), fx=widthScale,
                                     fy=heightScale)
-            return cv2.cvtColor(resized, cv2.COLOR_GRAY2RGBA)
-        return cv2.cvtColor(self.thresholded, cv2.COLOR_GRAY2RGBA)
+            return cv2.cvtColor(resized, cv2.COLOR_HSV2RGBA)
+        return cv2.cvtColor(self.mask, cv2.COLOR_HSV2RGBA)
 
     def getRGBAOriginal(self, widthScale=1, heightScale=1):
         if widthScale != 1 or heightScale != 1:
@@ -413,8 +451,9 @@ class GestureProcessor(object):
 
     def draw(self):
         self.drawingCanvas = np.zeros(self.original.shape, np.uint8)
-        self.drawHandContour(True)
-        self.drawHullContour(True)
-        self.drawDefects(True)
-        self.drawCenter()
-        self.drawCircles()
+        if self.found_hand:
+            self.drawHandContour(True)
+            self.drawHullContour(True)
+            self.drawDefects(True)
+            self.drawCenter()
+            self.drawCircles()

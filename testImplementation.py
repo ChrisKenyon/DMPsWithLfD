@@ -16,17 +16,11 @@ class GestureDemo(EventBasedAnimationClass):
         self.width = HEIGHT
         self.height = WIDTH
         super(GestureDemo, self).__init__(width=self.width, height=self.height)
-        self.timerDelay = 1000 / 30 # 30 FPS
-        self.bindGestures()
+        self.timerDelay = 1000 / 20 # 20 FPS
         self.CVHandles = []
         self.bgHandle = None
         self.trackCenter = False
         self.trail = False
-
-    def bindGestures(self):
-        self.gp.bind("Infinity", lambda: self.drawLukas())
-        self.gp.bind("Diagonal Bottom Left to Top Right",
-                     lambda: self.drawSmiley())
 
     def bindHandlers(self):
         self.root.bind("<KeyPress>", lambda event: self.onKeyDown(event))
@@ -51,8 +45,6 @@ class GestureDemo(EventBasedAnimationClass):
         elif event.char == 'd':
             self.canvas.delete(ALL)
             self.drawBG()
-        elif event.char == 'b':
-            self.bindGestures()
         elif event.char == 'q':
             self.onClose()
             exit()
@@ -81,6 +73,10 @@ class GestureDemo(EventBasedAnimationClass):
         cv2image = GestureProcessor.getRGBAFromGray(self.gp.thresholded,
                                                     self.width / 2,
                                                     self.height / 2)
+        cv2image = GestureProcessor.getMaskedResized(self.gp.original,
+                                                    self.width / 2,
+                                                    self.height / 2,
+                                                    self.gp.mask)
         self.imagetk3 = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
 
         self.CVHandles.append(self.canvas.create_image(0, 0, image=self.imagetk,
