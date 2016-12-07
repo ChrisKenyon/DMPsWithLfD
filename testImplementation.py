@@ -2,6 +2,7 @@ from eventBasedAnimationClass import EventBasedAnimationClass
 from Tkinter import *
 from GesturesApi import GestureProcessor
 from PIL import Image, ImageTk
+from datetime import datetime
 # Import statements from: 
 # http://stackoverflow.com/questions/16366857/show-webcam-sequence-tkinter
 HEIGHT = 1366
@@ -33,9 +34,10 @@ class GestureDemo(EventBasedAnimationClass):
         if event.char == 'l':
             self.write_path_to_file = not self.write_path_to_file
             if self.write_path_to_file:
-        	    self.path_file = open('test123.txt','w')
+                dt = datetime.now()
+                self.path_file = open('tracking-output-{}-{}-{}-{}-{}.txt'.format(dt.month,dt.day,dt.hour,dt.minute,dt.second),'a')
             else:
-        		close(self.path_file)
+                close(self.path_file)
         elif event.char == 'r':
             self.gp.saveNext()
         elif event.char == 's':
@@ -98,8 +100,9 @@ class GestureDemo(EventBasedAnimationClass):
                               anchor="ne", font="15"))
         if self.write_path_to_file:
             print("writing...")
-            center = self.gp.getScaledCenter()
-            x,y = 1000*center[0],1000*(1-center[1])
+            #center = self.gp.getScaledCenter()
+            center = self.gp.getScaledFarthest()
+            x,y = 1024*center[0],1024*(1-center[1])
             self.path_file.write('{},{}\n'.format(y,x))
 
     def drawBG(self):
