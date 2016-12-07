@@ -235,6 +235,33 @@ class GestureProcessor(object):
         else:
             self.recentPositions = []
 
+    def findDefects(self):
+        contour=self.handContour
+        hull = cv2.convexHull(contour, returnPoints=False)
+        if hull is not None and len(hull > 3) and len(contour) > 3:
+            self.defects = cv2.convexityDefects(contour, hull)   
+
+    def find_farthest_point(self):
+        contour=self.handContour
+        defects=self.defects
+        centroid=self.handCenterPositions
+        s = defects[:,0][:,0]
+        cx, cy = centroid[0]
+        
+        x = np.array(contour[s][:,0][:,0], dtype=np.float)
+        y = np.array(contour[s][:,0][:,1], dtype=np.float)
+                    
+        xp = cv2.pow(cv2.subtract(x, cx), 2)
+        yp = cv2.pow(cv2.subtract(y, cy), 2)
+        dist = cv2.sqrt(cv2.add(xp, yp))
+
+        dist_max_i = np.argmax(dist)
+
+        if dist_max_i < len(s):
+            farthest_defect = s[dist_max_i]
+            self.farthest_point = tuple(contour[farthest_defect][0])
+            print self.farthest_point
+
 # ----------------------------- Gesture Detection -----------------------------
 # Functions associated with determining gestures
 
@@ -327,6 +354,8 @@ class GestureProcessor(object):
             self.findCenterCircleAndRadius()
             self.getDistance()
             self.analyzeHandCenter()
+            self.findDefects()
+            self.find_farthest_point()
             self.checkCanDoGestures()
             self.detemineStationary()
             self.determineIfGesture()
@@ -409,7 +438,7 @@ class GestureProcessor(object):
         return cv2.cvtColor(self.drawingCanvas, cv2.COLOR_BGR2RGBA)
 
     def drawCenter(self):
-        cv2.circle(self.drawingCanvas, tuple(self.palmCenter),
+        cv2.circle(self.drawingCanvas, tuple(self.farthest_point),
                    10, (255, 0, 0), -2)
         if len(self.recentPositions) != 0:
             for i in xrange(len(self.recentPositions)):
@@ -417,7 +446,7 @@ class GestureProcessor(object):
                            (255, 25*i, 25*i), -1)
 
     def drawCircles(self):
-        cv2.circle(self.drawingCanvas, tuple(self.palmCenter),
+        cv2.circle(self.drawingCanvas, tuple(self.farthest_point),
                    int(self.palmRadius), (0, 255, 0), 10)
 
     def drawHandContour(self, bubbles = False):
