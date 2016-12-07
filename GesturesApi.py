@@ -26,6 +26,8 @@ class GestureProcessor(object):
         self.handDistance = -1
         self.handMomentPositions = []
         self.handCenterPositions = []
+        self.farthest_point = None
+        self.recent_finger_points = []
         self.initGestures()
 
 # --------------------------------- Gesture IO --------------------------------
@@ -230,6 +232,8 @@ class GestureProcessor(object):
         # makes sure that there is actually sufficient data to trace over
         if len(self.handCenterPositions) > 10:
             self.recentPositions = sorted(self.handCenterPositions[-30:])
+            self.recent_finger_points += [tuple(self.farthest_point)]
+            self.recent_finger_points = sorted(self.recent_finger_points[-30:])
             self.x = [pos[0] for pos in self.recentPositions]
             self.y = [pos[1] for pos in self.recentPositions]
         else:
@@ -246,7 +250,7 @@ class GestureProcessor(object):
         defects=self.defects
         centroid=self.handCenterPositions
         s = defects[:,0][:,0]
-        cx, cy = centroid[0]
+        cx, cy = centroid[0] if len(centroid) > 0 else (0, 0)
         
         x = np.array(contour[s][:,0][:,0], dtype=np.float)
         y = np.array(contour[s][:,0][:,1], dtype=np.float)
@@ -260,7 +264,7 @@ class GestureProcessor(object):
         if dist_max_i < len(s):
             farthest_defect = s[dist_max_i]
             self.farthest_point = tuple(contour[farthest_defect][0])
-            print self.farthest_point
+            
 
 # ----------------------------- Gesture Detection -----------------------------
 # Functions associated with determining gestures
@@ -448,10 +452,17 @@ class GestureProcessor(object):
     def drawCenter(self):
         cv2.circle(self.drawingCanvas, tuple(self.farthest_point),
                    10, (255, 0, 0), -2)
+        '''
         if len(self.recentPositions) != 0:
             for i in xrange(len(self.recentPositions)):
                 cv2.circle(self.drawingCanvas, self.recentPositions[i], 5,
                            (255, 25*i, 25*i), -1)
+        '''
+        if len(self.recent_finger_points) != 0:
+            for i in xrange(len(self.recent_finger_points)):
+                cv2.circle(self.drawingCanvas, self.recent_finger_points[i], 5,
+                           (255, 25*i, 25*i), -1)
+
 
     def drawCircles(self):
         cv2.circle(self.drawingCanvas, tuple(self.farthest_point),
@@ -493,4 +504,4 @@ class GestureProcessor(object):
             self.drawHullContour(True)
             self.drawDefects(True)
             self.drawCenter()
-            self.drawCircles()
+            #self.drawCircles()
