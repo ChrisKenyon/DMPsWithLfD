@@ -3,7 +3,7 @@ from Tkinter import *
 from GesturesApi import GestureProcessor
 from PIL import Image, ImageTk
 from datetime import datetime
-# Import statements from: 
+# Import statements from:
 # http://stackoverflow.com/questions/16366857/show-webcam-sequence-tkinter
 HEIGHT = 1366
 WIDTH = 768
@@ -102,7 +102,7 @@ class GestureDemo(EventBasedAnimationClass):
             print("writing...")
             #center = self.gp.getScaledCenter()
             center = self.gp.getScaledFarthest()
-            x,y = 1024*center[0],1024*(1-center[1])
+            x,y = 2048*center[0],2048*(1-center[1])
             self.path_file.write('{},{}\n'.format(y,x))
 
     def drawBG(self):
