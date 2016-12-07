@@ -383,6 +383,14 @@ class GestureProcessor(object):
         print "RECORDED NEW ONE", gestureName
         self.lastAction = gestureName
         return gestureName
+    
+    def getScaledFarthest(self):
+        try:
+            return (self.farthest_point / np.array([self.cameraWidth,
+                                            self.cameraHeight],
+                                            dtype=np.float32)).round(3)
+        except:
+            return np.array([self.cameraWidth,self.cameraHeight],dtype=np.float32)/2
 
     def getScaledCenter(self):
         try:
